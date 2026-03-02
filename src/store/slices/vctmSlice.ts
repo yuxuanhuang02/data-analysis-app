@@ -38,6 +38,7 @@ export interface VCTMState {
     setZoomLevel: (level: number) => void;
     setHorizontalScroll: (scroll: number) => void;
     addChartAnnotation: (annotation: Omit<ChartAnnotation, 'id'>) => void;
+    removeChartAnnotation: (id: string) => void;
     clearChartAnnotations: () => void;
 }
 
@@ -69,6 +70,9 @@ export const createVCTMSlice: StateCreator<VCTMState> = (set) => ({
     setHorizontalScroll: (scroll) => set({ horizontalScroll: scroll }),
     addChartAnnotation: (ann) => set((state) => ({
         chartAnnotations: [...state.chartAnnotations, { ...ann, id: Math.random().toString(36).substring(7) }]
+    })),
+    removeChartAnnotation: (id) => set((state) => ({
+        chartAnnotations: state.chartAnnotations.filter(a => a.id !== id)
     })),
     clearChartAnnotations: () => set({ chartAnnotations: [] }),
 });

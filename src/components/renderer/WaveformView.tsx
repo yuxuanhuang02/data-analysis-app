@@ -15,6 +15,7 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
     const appRef = useRef<PIXI.Application | null>(null);
     const mouseRef = useRef<{ x: number; y: number; inside: boolean; t?: number; v?: number }>({ x: 0, y: 0, inside: false });
     const snapRef = useRef<{ signalId: string, signalName: string, t: number, v: number, text: string, color: number }[]>([]);
+    const renderedAnnotationsRef = useRef<{ id: string, x: number, y: number }[]>([]);
 
     const [cursors, setCursors] = useState<{ a: number | null; b: number | null }>({ a: null, b: null });
 
@@ -43,8 +44,17 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
             );
         };
         const onLeave = () => { mouseRef.current.inside = false; };
-        const onDblClick = () => {
-            if (mouseRef.current.inside && snapRef.current.length > 0) {
+        const onClick = (e: MouseEvent) => {
+            if (!mouseRef.current.inside) return;
+            const clickX = mouseRef.current.x;
+            const clickY = mouseRef.current.y;
+
+            // Check if user clicked on an existing annotation
+            const clickedAnn = renderedAnnotationsRef.current.find(a => Math.hypot(a.x - clickX, a.y - clickY) < 20);
+
+            if (clickedAnn) {
+                useStore.getState().removeChartAnnotation(clickedAnn.id);
+            } else if (snapRef.current.length > 0) {
                 const addAnn = useStore.getState().addChartAnnotation;
                 snapRef.current.forEach(ann => addAnn(ann));
             }
@@ -52,11 +62,11 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
         el.addEventListener('mousemove', onMove);
         el.addEventListener('mouseleave', onLeave);
-        el.addEventListener('dblclick', onDblClick);
+        el.addEventListener('click', onClick);
         return () => {
             el.removeEventListener('mousemove', onMove);
             el.removeEventListener('mouseleave', onLeave);
-            el.removeEventListener('dblclick', onDblClick);
+            el.removeEventListener('click', onClick);
         };
     }, []);
 
@@ -133,7 +143,7 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
                 const totalTRange = maxT - minT || 1;
                 const totalVRange = maxV - minV || 1;
 
-                const MARGIN_L = 55; // space for Y labels
+                const MARGIN_L = 75; // Increased space for Y labels
                 const MARGIN_B = 25; // space for X labels
                 const plotW = app.screen.width - MARGIN_L - 10;
                 const plotH = height - MARGIN_B - 10;
@@ -308,11 +318,19 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
                 // 5. PERMANENT ANNOTATIONS
                 let drawnAnnCount = 0;
+                renderedAnnotationsRef.current = [];
+
                 chartAnnotations.forEach(ann => {
                     const ax = offsetX + (ann.t - minT) * scaleX;
                     const ay = plotH - (ann.v - minV) * scaleY;
 
                     if (ax >= MARGIN_L && ax <= app.screen.width && ay >= 0 && ay <= plotH) {
+                        renderedAnnotationsRef.current.push({ id: ann.id, x: ax, y: ay });
+
+                        // Draw line connecting point to label to avoid overlapping the curve directly
+                        annotationLayer.setStrokeStyle({ width: 1, color: ann.color, alpha: 0.8 });
+                        annotationLayer.moveTo(ax, ay).lineTo(ax + 10, ay - 15);
+
                         annotationLayer.beginFill(0x1a1a24);
                         annotationLayer.drawCircle(ax, ay, 6);
                         annotationLayer.endFill();
@@ -328,8 +346,8 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
                             const tsStr = Math.abs(tSec) >= 1 ? `${tSec.toFixed(3)}s` : `${ann.t.toFixed(1)}ms`;
                             lbl.text = `[${tsStr}] ${ann.signalName}: ${ann.v.toFixed(3)}`;
                             lbl.style.fill = ann.color;
-                            lbl.x = ax + 10;
-                            lbl.y = ay - 10;
+                            lbl.x = ax + 15;
+                            lbl.y = ay - 25;
                             lbl.visible = true;
                         }
                     }
