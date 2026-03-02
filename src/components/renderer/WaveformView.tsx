@@ -14,11 +14,17 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<PIXI.Application | null>(null);
     const mouseRef = useRef<{ x: number; y: number; inside: boolean; t?: number; v?: number }>({ x: 0, y: 0, inside: false });
+    const snapRef = useRef<{ signalId: string, signalName: string, t: number, v: number, text: string, color: number }[]>([]);
 
     const [cursors, setCursors] = useState<{ a: number | null; b: number | null }>({ a: null, b: null });
 
     const setZoomLevel = useStore((s) => s.setZoomLevel);
     const setHorizontalScroll = useStore((s) => s.setHorizontalScroll);
+    const visibleSignals = useStore((s) => s.visibleSignals);
+    const chartAnnotations = useStore((s) => s.chartAnnotations);
+    const clearChartAnnotations = useStore((s) => s.clearChartAnnotations);
+
+    const UI_COLORS = [0x58a6ff, 0x3fb950, 0xd29922, 0xf85149, 0xbc8cff, 0x39d353, 0xffa657];
 
     // ── DOM Mouse Tracking (fixes crosshair position) ──────────────────────
     useEffect(() => {
@@ -37,9 +43,21 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
             );
         };
         const onLeave = () => { mouseRef.current.inside = false; };
+        const onDblClick = () => {
+            if (mouseRef.current.inside && snapRef.current.length > 0) {
+                const addAnn = useStore.getState().addChartAnnotation;
+                snapRef.current.forEach(ann => addAnn(ann));
+            }
+        };
+
         el.addEventListener('mousemove', onMove);
         el.addEventListener('mouseleave', onLeave);
-        return () => { el.removeEventListener('mousemove', onMove); el.removeEventListener('mouseleave', onLeave); };
+        el.addEventListener('dblclick', onDblClick);
+        return () => {
+            el.removeEventListener('mousemove', onMove);
+            el.removeEventListener('mouseleave', onLeave);
+            el.removeEventListener('dblclick', onDblClick);
+        };
     }, []);
 
     // ── PixiJS Renderer ────────────────────────────────────────────────────
@@ -61,7 +79,8 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
             const gridLayer = new PIXI.Graphics();
             const signalLayer = new PIXI.Graphics();
             const uiLayer = new PIXI.Graphics();
-            app.stage.addChild(gridLayer, signalLayer, uiLayer);
+            const annotationLayer = new PIXI.Graphics();
+            app.stage.addChild(gridLayer, signalLayer, uiLayer, annotationLayer);
 
             const labelStyle = { fontFamily: 'Inter, monospace', fontSize: 10, fill: 0x8b949e };
             const xLabels: PIXI.Text[] = [];
@@ -80,13 +99,22 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
             });
             app.stage.addChild(tooltip);
 
+            const annLabels: PIXI.Text[] = [];
+            for (let i = 0; i < 200; i++) {
+                const t = new PIXI.Text({ text: '', style: { fontFamily: 'monospace', fontSize: 10, fill: 0xffffff } });
+                t.visible = false;
+                app.stage.addChild(t);
+                annLabels.push(t);
+            }
+
             app.ticker.add(() => {
                 const state = useStore.getState();
-                const { visibleSignals, currentSamples, zoomLevel, horizontalScroll } = state;
+                const { visibleSignals, currentSamples, zoomLevel, horizontalScroll, chartAnnotations } = state;
 
-                gridLayer.clear(); signalLayer.clear(); uiLayer.clear();
+                gridLayer.clear(); signalLayer.clear(); uiLayer.clear(); annotationLayer.clear();
                 xLabels.forEach(l => l.visible = false);
                 yLabels.forEach(l => l.visible = false);
+                annLabels.forEach(l => l.visible = false);
 
                 if (visibleSignals.length === 0) { tooltip.visible = false; return; }
 
@@ -197,12 +225,13 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
                     // Nearest point measurement for MULTIPLE signals
                     const hT = viewportTStart + (mx - MARGIN_L) / scaleX;
-                    const colors = [0x58a6ff, 0x3fb950, 0xd29922, 0xf85149, 0xbc8cff, 0x39d353, 0xffa657];
 
                     let tooltipLines: string[] = [];
                     let bestSnapT = hT;
                     let minDiffT = Infinity;
                     let hVPrimary = 0; // Value of the closest point
+
+                    snapRef.current = []; // Clear previous frame's snaps
 
                     visibleSignals.forEach((id, idx) => {
                         const samples = currentSamples[id];
@@ -236,7 +265,7 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
                             // Draw snap circle in signal's color
                             const snapX = MARGIN_L + (closest.timestamp - minT) * scaleX;
                             const snapY = plotH - (hV - minV) * scaleY;
-                            const color = colors[idx % colors.length];
+                            const color = UI_COLORS[idx % UI_COLORS.length];
 
                             uiLayer.beginFill(color);
                             uiLayer.drawCircle(snapX, snapY, 4);
@@ -246,6 +275,14 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
                             // Add to tooltip lines
                             tooltipLines.push(`${id}: ${hV.toFixed(5)}`);
+                            snapRef.current.push({
+                                signalId: id,
+                                signalName: id,
+                                t: closest.timestamp,
+                                v: hV,
+                                text: `${id}: ${hV.toFixed(5)}`,
+                                color
+                            });
                         }
                     });
 
@@ -269,7 +306,37 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
                     mouseRef.current.v = undefined;
                 }
 
-                // 5. REMOTE CURSORS
+                // 5. PERMANENT ANNOTATIONS
+                let drawnAnnCount = 0;
+                chartAnnotations.forEach(ann => {
+                    const ax = offsetX + (ann.t - minT) * scaleX;
+                    const ay = plotH - (ann.v - minV) * scaleY;
+
+                    if (ax >= MARGIN_L && ax <= app.screen.width && ay >= 0 && ay <= plotH) {
+                        annotationLayer.beginFill(0x1a1a24);
+                        annotationLayer.drawCircle(ax, ay, 6);
+                        annotationLayer.endFill();
+                        annotationLayer.beginFill(ann.color);
+                        annotationLayer.drawCircle(ax, ay, 4);
+                        annotationLayer.endFill();
+                        annotationLayer.setStrokeStyle({ width: 2, color: 0xffffff });
+                        annotationLayer.drawCircle(ax, ay, 4);
+
+                        if (drawnAnnCount < annLabels.length) {
+                            const lbl = annLabels[drawnAnnCount++];
+                            const tSec = ann.t / 1000;
+                            const tsStr = Math.abs(tSec) >= 1 ? `${tSec.toFixed(3)}s` : `${ann.t.toFixed(1)}ms`;
+                            lbl.text = `[${tsStr}] ${ann.signalName}: ${ann.v.toFixed(3)}`;
+                            lbl.style.fill = ann.color;
+                            lbl.x = ax + 10;
+                            lbl.y = ay - 10;
+                            lbl.visible = true;
+                        }
+                    }
+                });
+                annotationLayer.stroke();
+
+                // 6. REMOTE CURSORS
                 Object.values(useStore.getState().cursors).forEach((rc) => {
                     // Ignore our own cursor
                     if (rc.id === colabService.userId) return;
@@ -358,6 +425,32 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
     return (
         <div className="relative group select-none overflow-hidden rounded-lg">
+            {/* DOM Overlay for Legend (captured by html-to-image) */}
+            {visibleSignals.length > 0 && (
+                <div className="absolute top-4 right-4 bg-slate-950/80 backdrop-blur-md border border-slate-700 p-3 rounded-lg flex flex-col gap-2 z-10 pointer-events-none shadow-xl">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1 mb-1">Legend</div>
+                    {visibleSignals.map((id, i) => {
+                        const colorHex = `#${UI_COLORS[i % UI_COLORS.length].toString(16).padStart(6, '0')}`;
+                        return (
+                            <div key={id} className="flex items-center gap-2 text-xs font-mono text-slate-200">
+                                <div className="w-3 h-3 rounded box-border border-white/20 border" style={{ backgroundColor: colorHex }} />
+                                {id}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Clear Annotations Button */}
+            {chartAnnotations.length > 0 && (
+                <button
+                    onClick={clearChartAnnotations}
+                    className="absolute top-4 left-48 px-3 py-1.5 bg-rose-500/20 text-rose-400 border border-rose-500/50 rounded-lg text-xs hover:bg-rose-500/30 transition-colors z-10 cursor-pointer shadow-lg backdrop-blur-sm"
+                >
+                    Clear Annotations ({chartAnnotations.length})
+                </button>
+            )}
+
             <RemoteCursors />
             <div
                 ref={containerRef}

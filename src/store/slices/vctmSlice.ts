@@ -9,6 +9,16 @@ export interface SignalMetadata {
     source: string;
 }
 
+export interface ChartAnnotation {
+    id: string;
+    signalId: string;
+    signalName: string;
+    t: number;
+    v: number;
+    text: string;
+    color: number;
+}
+
 export interface VCTMState {
     sources: string[];
     availableSignals: SignalMetadata[];
@@ -17,7 +27,8 @@ export interface VCTMState {
     globalOffset: number;
     zoomLevel: number; // 1.0 = auto-fit, > 1.0 = zoomed in
     horizontalScroll: number; // offset in ms or pixels
-    annotations: Annotation[];
+    annotations: Annotation[]; // For the chat/comment drawer
+    chartAnnotations: ChartAnnotation[]; // For persistent dots on the plot
 
     setGlobalOffset: (offset: number) => void;
     addSource: (id: string) => void;
@@ -26,6 +37,8 @@ export interface VCTMState {
     toggleSignal: (id: string) => void;
     setZoomLevel: (level: number) => void;
     setHorizontalScroll: (scroll: number) => void;
+    addChartAnnotation: (annotation: Omit<ChartAnnotation, 'id'>) => void;
+    clearChartAnnotations: () => void;
 }
 
 export const createVCTMSlice: StateCreator<VCTMState> = (set) => ({
@@ -37,6 +50,7 @@ export const createVCTMSlice: StateCreator<VCTMState> = (set) => ({
     zoomLevel: 1.0,
     horizontalScroll: 0,
     annotations: [],
+    chartAnnotations: [],
 
     setGlobalOffset: (offset) => set({ globalOffset: offset }),
     addSource: (id) => set((state) => ({
@@ -53,4 +67,8 @@ export const createVCTMSlice: StateCreator<VCTMState> = (set) => ({
     })),
     setZoomLevel: (level) => set({ zoomLevel: level }),
     setHorizontalScroll: (scroll) => set({ horizontalScroll: scroll }),
+    addChartAnnotation: (ann) => set((state) => ({
+        chartAnnotations: [...state.chartAnnotations, { ...ann, id: Math.random().toString(36).substring(7) }]
+    })),
+    clearChartAnnotations: () => set({ chartAnnotations: [] }),
 });
