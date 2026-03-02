@@ -145,12 +145,14 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
 
                 const MARGIN_L = 75; // Increased space for Y labels
                 const MARGIN_B = 25; // space for X labels
+                const MARGIN_T = 40; // Space at the top for labels
                 const plotW = app.screen.width - MARGIN_L - 10;
                 const plotH = height - MARGIN_B - 10;
+                const usableH = plotH - MARGIN_T;
 
                 const baseScaleX = plotW / totalTRange;
                 const scaleX = baseScaleX * zoomLevel;
-                const scaleY = plotH / totalVRange;
+                const scaleY = usableH / totalVRange;
 
                 // Viewport start time
                 const viewportTStart = minT + horizontalScroll * totalTRange;

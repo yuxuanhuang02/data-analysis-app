@@ -72,7 +72,7 @@ export default function Home() {
     <main
       className="flex min-h-screen flex-col items-center justify-between p-24 bg-slate-950 text-slate-100 relative overflow-hidden"
     >
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex border-b border-slate-800 pb-6 mb-12">
+      <div className="z-10 w-full max-w-[1600px] items-center justify-between font-mono text-sm lg:flex border-b border-slate-800 pb-6 mb-12">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
             ITI Online Data Analysis
@@ -116,8 +116,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div id="dashboard-main" className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full max-w-5xl">
-        <div className="lg:col-span-2 space-y-8">
+      <div id="dashboard-main" className="grid grid-cols-1 lg:grid-cols-4 gap-8 w-full max-w-[1600px]">
+        <div className="lg:col-span-3 space-y-8">
           <section className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-slate-200">Real-time Waveform Preview</h2>
@@ -125,7 +125,7 @@ export default function Home() {
                 VCTM Clock: <span className="text-blue-400">0 μs</span>
               </div>
             </div>
-            <WaveformView height={300} />
+            <WaveformView height={500} />
           </section>
 
           <section className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md flex flex-col gap-6">
