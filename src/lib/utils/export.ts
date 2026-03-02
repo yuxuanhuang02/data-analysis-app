@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import * as XLSX from 'xlsx';
 import { SignalPoint } from '../vctm/engine';
 
@@ -21,19 +21,20 @@ export const ExportService = {
         const element = document.getElementById(elementId);
         if (!element) return;
 
-        const canvas = await html2canvas(element, {
+        const imgData = await toPng(element, {
             backgroundColor: '#0d1117',
-            scale: 2
+            pixelRatio: 2
         });
+        const width = element.offsetWidth * 2;
+        const height = element.offsetHeight * 2;
 
-        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF({
             orientation: 'landscape',
             unit: 'px',
-            format: [canvas.width, canvas.height]
+            format: [width, height]
         });
 
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
         pdf.save(`analysis_report_${Date.now()}.pdf`);
     }
 };
