@@ -52,6 +52,7 @@ export const WaveformView: React.FC<WaveformViewProps> = ({ height = 400 }) => {
                 background: '#0d1117',
                 resizeTo: containerRef.current!,
                 antialias: true,
+                preserveDrawingBuffer: true // Required for html2canvas PDF export
             });
 
             containerRef.current?.appendChild(app.canvas);

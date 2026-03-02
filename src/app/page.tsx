@@ -20,14 +20,35 @@ export default function Home() {
   const [isBenchmarking, setIsBenchmarking] = useState(false);
 
   const handleExportExcel = async () => {
-    if (visibleSignals.length === 0) return;
-    const activeId = visibleSignals[0];
-    const samples = currentSamples[activeId] || [];
-    await ExportService.exportToExcel(activeId, samples);
+    if (visibleSignals.length === 0) {
+      alert("Please select at least one signal before exporting to Excel.");
+      return;
+    }
+    try {
+      const activeId = visibleSignals[0];
+      const samples = currentSamples[activeId] || [];
+      if (samples.length === 0) {
+        alert("No samples found for the selected signal.");
+        return;
+      }
+      alert(`Exporting ${samples.length} points to Excel... Please wait.`);
+      await ExportService.exportToExcel(activeId, samples);
+      alert("Excel export complete!");
+    } catch (err: any) {
+      console.error("Excel export error:", err);
+      alert("Failed to export Excel: " + err.message);
+    }
   };
 
   const handleExportPdf = async () => {
-    await ExportService.generatePdfReport('dashboard-main');
+    try {
+      alert("Capturing dashboard... Please wait.");
+      await ExportService.generatePdfReport('dashboard-main');
+      alert("PDF report complete!");
+    } catch (err: any) {
+      console.error("PDF export error:", err);
+      alert("Failed to generate PDF: " + err.message);
+    }
   };
 
   const handleStressTest = async (count: number) => {
